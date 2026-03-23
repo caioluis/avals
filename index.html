@@ -178,6 +178,51 @@
       color: #666;
       margin-right: 0.3rem;
     }
+
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid #2e2e3a;
+    }
+
+    .tab-btn {
+      margin-top: 0;
+      width: auto;
+      background: none;
+      color: #666;
+      border: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      padding: 0.4rem 0.9rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      margin-bottom: -1px;
+      transition: color 0.15s;
+    }
+
+    .tab-btn:hover { background: none; color: #aaa; }
+
+    .tab-btn.active {
+      color: #e8d5a3;
+      border-bottom-color: #e8d5a3;
+      background: none;
+    }
+
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    #avalCount {
+      display: inline-block;
+      background: #2e2e3a;
+      color: #888;
+      font-size: 0.7rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      margin-left: 0.4rem;
+      vertical-align: middle;
+    }
   </style>
 </head>
 <body>
@@ -200,19 +245,34 @@
       <label>Link do Personagem (ficha)</label>
       <input type="url" id="charLink" placeholder="https://goldenagejjkrpg.forumeiros.com/joao-gojo#666" autocomplete="url">
 
-      <label>
-        Links dos Logs
-        <span class="count-badge" id="linkCount">0 links</span>
-      </label>
-      <textarea id="links" rows="10" placeholder="Cole os links aqui, um por linha:&#10;https://goldenagejjkrpg.forumeiros.com/t870-log-sayonara#1234&#10;https://goldenagejjkrpg.forumeiros.com/t314-log-kiyora-desgracada&#10;..."></textarea>
-      <div id="dupWarning">
-        <div class="dup-header">⚠ Links duplicados</div>
-        <ul id="dupList"></ul>
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('logs')">Logs</button>
+        <button class="tab-btn" onclick="switchTab('avals')">Avaliações de RP</button>
+      </div>
+
+      <div id="tab-logs" class="tab-pane active">
+        <label>
+          Links dos Logs
+          <span class="count-badge" id="linkCount">0 links</span>
+        </label>
+        <textarea id="links" rows="8" placeholder="Cole os links aqui, um por linha:&#10;https://goldenagejjkrpg.forumeiros.com/t870-log-sayonara#1234&#10;https://goldenagejjkrpg.forumeiros.com/t314-log-kiyora-desgracada&#10;..."></textarea>
+        <div id="dupWarning">
+          <div class="dup-header">⚠ Links duplicados</div>
+          <ul id="dupList"></ul>
+        </div>
+      </div>
+
+      <div id="tab-avals" class="tab-pane">
+        <label>
+          Avaliações de RP
+          <span id="avalCount">0 avaliações</span>
+        </label>
+        <textarea id="avalLinks" rows="8" placeholder="Cole as avaliações aqui, uma por linha:&#10;https://goldenagejjkrpg.forumeiros.com/t1097-treino-fonte-e-percepcao-magica-i#8620 (540)&#10;https://goldenagejjkrpg.forumeiros.com/t1152-quest-alter-kuma-b2#9320 (6000)&#10;..."></textarea>
       </div>
 
       <label>Texto da Nota (título | conteúdo)</label>
       <input type="text" id="noteTitle" placeholder="Título da Nota" value="Cálculo de XP">
-      <textarea id="noteContent" rows="3"></textarea>
+      <textarea id="noteContent" rows="4"></textarea>
 
       <button onclick="generate()">Gerar HTML</button>
     </div>
@@ -256,19 +316,52 @@
     // Initialize form immediately (don't wait for DOMContentLoaded since script runs after DOM is loaded)
     initializeForm();
 
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', (i === 0 && tab === 'logs') || (i === 1 && tab === 'avals'));
+      });
+      document.getElementById('tab-logs').classList.toggle('active', tab === 'logs');
+      document.getElementById('tab-avals').classList.toggle('active', tab === 'avals');
+    }
+
     // Update link count, flag duplicates, and auto-calc note on input
     document.getElementById('links').addEventListener('input', function () {
       const lines = this.value.split('\n').map(l => l.trim()).filter(Boolean);
       document.getElementById('linkCount').textContent = lines.length + ' link' + (lines.length !== 1 ? 's' : '');
       checkDuplicates(lines);
-      updateNoteContent(lines.length);
+      updateNoteContent(lines.length, parseAvaliacoes(document.getElementById('avalLinks').value));
     });
 
-    function updateNoteContent(n) {
-      const xp = Math.trunc(n / 3) * 1000;
+    document.getElementById('avalLinks').addEventListener('input', function () {
+      const avals = parseAvaliacoes(this.value);
+      document.getElementById('avalCount').textContent = avals.length + ' avaliaç' + (avals.length !== 1 ? 'ões' : 'ão');
+      const logLines = document.getElementById('links').value.split('\n').map(l => l.trim()).filter(Boolean);
+      updateNoteContent(logLines.length, avals);
+    });
+
+    function parseAvaliacoes(text) {
+      return text.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+        const match = line.match(/^(\S+)\s+\((\d+)\)\s*$/);
+        if (!match) return null;
+        return { url: match[1], xp: parseInt(match[2], 10) };
+      }).filter(Boolean);
+    }
+
+    function updateNoteContent(n, avals) {
+      avals = avals || [];
+      const logXp = Math.trunc(n / 3) * 1000;
       const remainder = n % 3;
-      let text = `${n} Logs. 1000XP a cada 3 logs, ${xp.toLocaleString('pt-BR')} XP Livre de logs.`;
-      if (remainder > 0) text += `\nContador de logs em (${remainder}/3)`;
+      let text = `${n} Logs. 1000XP a cada 3 logs, ${logXp.toLocaleString('pt-BR')} XP Livre de logs.`;
+      if (remainder > 0 && avals.length === 0) text += `\nContador de logs em (${remainder}/3)`;
+
+      if (avals.length > 0) {
+        const avalTotal = avals.reduce((sum, a) => sum + a.xp, 0);
+        const avalXp = Math.trunc(avalTotal * 0.2);
+        const totalXp = logXp + avalXp;
+        text += `\nDe avaliações de RP, 20% de ${avalTotal.toLocaleString('pt-BR')} = ${avalXp.toLocaleString('pt-BR')} XP Livre`;
+        text += `\n\nTotal de XP Livre OFF de Avaliações e Logs = ${totalXp.toLocaleString('pt-BR')} XP`;
+      }
+
       document.getElementById('noteContent').value = text;
     }
 
@@ -328,7 +421,9 @@
         .map(l => l.trim())
         .filter(Boolean);
 
-      if (!rawLinks.length) {
+      const rawAvals = parseAvaliacoes(document.getElementById('avalLinks').value);
+
+      if (!rawLinks.length && !rawAvals.length) {
         alert('Cole pelo menos um link.');
         return;
       }
@@ -352,6 +447,12 @@
         const label = i === 0 ? 'Fonte da Mudança' : 'Extra';
         const text = ` [Log] ${name} [${i + 1}]`;
         items += `<li><span class="label">${label}:</span><span class="value"><a href="${escapeHtml(url)}" target="_blank">${escapeHtml(text)}</a></span></li>`;
+      });
+
+      // Avaliação de RP links
+      rawAvals.forEach(({ url, xp }) => {
+        const text = `Avaliação de RP (${xp.toLocaleString('pt-BR')} XP)`;
+        items += `<li><span class="label">Extra:</span><span class="value"><a href="${escapeHtml(url)}" target="_blank">${escapeHtml(text)}</a></span></li>`;
       });
 
       // Notes block
