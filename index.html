@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Log Generator</title>
+  <title>Gerador de Logs de Avaliação</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -198,7 +198,7 @@
       </div>
 
       <label>Link do Personagem (ficha)</label>
-      <input type="url" id="charLink" placeholder="https://goldenagejjkrpg.forumeiros.com/joao-gojo#666">
+      <input type="url" id="charLink" placeholder="https://goldenagejjkrpg.forumeiros.com/joao-gojo#666" autocomplete="url">
 
       <label>
         Links dos Logs
@@ -227,6 +227,35 @@
   </div>
 
   <script>
+    // Initialize date field with today's date and restore saved character data
+    function initializeForm() {
+      // Set date to today
+      const today = new Date();
+      const day = String(today.getDate()).padStart(2, '0');
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const year = today.getFullYear();
+      const formattedDate = `${day}/${month}/${year}`;
+      document.getElementById('date').value = formattedDate;
+
+      // Restore character name and link from localStorage
+      const savedCharName = localStorage.getItem('charName');
+      const savedCharLink = localStorage.getItem('charLink');
+      if (savedCharName) document.getElementById('charName').value = savedCharName;
+      if (savedCharLink) document.getElementById('charLink').value = savedCharLink;
+    }
+
+    // Save character data to localStorage on input
+    document.getElementById('charName').addEventListener('change', function() {
+      localStorage.setItem('charName', this.value);
+    });
+
+    document.getElementById('charLink').addEventListener('change', function() {
+      localStorage.setItem('charLink', this.value);
+    });
+
+    // Initialize form immediately (don't wait for DOMContentLoaded since script runs after DOM is loaded)
+    initializeForm();
+
     // Update link count, flag duplicates, and auto-calc note on input
     document.getElementById('links').addEventListener('input', function () {
       const lines = this.value.split('\n').map(l => l.trim()).filter(Boolean);
