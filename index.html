@@ -142,7 +142,7 @@
       color: #e07070;
     }
 
-    #dupWarning {
+    .dup-warning {
       display: none;
       margin-top: 0.6rem;
       background: #1e1010;
@@ -152,20 +152,20 @@
       font-size: 0.75rem;
     }
 
-    #dupWarning .dup-header {
+    .dup-warning .dup-header {
       color: #e07070;
       font-weight: 600;
       margin-bottom: 0.4rem;
     }
 
-    #dupWarning ul {
+    .dup-warning ul {
       list-style: none;
       display: flex;
       flex-direction: column;
       gap: 0.2rem;
     }
 
-    #dupWarning li {
+    .dup-warning li {
       color: #c08080;
       font-family: 'Courier New', monospace;
       font-size: 0.72rem;
@@ -174,7 +174,7 @@
       text-overflow: ellipsis;
     }
 
-    #dupWarning li span {
+    .dup-warning li span {
       color: #666;
       margin-right: 0.3rem;
     }
@@ -213,7 +213,7 @@
     .tab-pane { display: none; }
     .tab-pane.active { display: block; }
 
-    #avalCount {
+    #avalCount, #attrCount {
       display: inline-block;
       background: #2e2e3a;
       color: #888;
@@ -248,6 +248,7 @@
       <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('logs')">Logs</button>
         <button class="tab-btn" onclick="switchTab('avals')">Avaliações de RP</button>
+        <button class="tab-btn" onclick="switchTab('attrs')">Avaliações de Atributo</button>
       </div>
 
       <div id="tab-logs" class="tab-pane active">
@@ -256,7 +257,7 @@
           <span class="count-badge" id="linkCount">0 links</span>
         </label>
         <textarea id="links" rows="8" placeholder="Cole os links aqui, um por linha:&#10;https://goldenagejjkrpg.forumeiros.com/t870-log-sayonara#1234&#10;https://goldenagejjkrpg.forumeiros.com/t314-log-kiyora-desgracada&#10;..."></textarea>
-        <div id="dupWarning">
+        <div id="dupWarning" class="dup-warning">
           <div class="dup-header">⚠ Links duplicados</div>
           <ul id="dupList"></ul>
         </div>
@@ -268,6 +269,32 @@
           <span id="avalCount">0 avaliações</span>
         </label>
         <textarea id="avalLinks" rows="8" placeholder="Cole as avaliações aqui, uma por linha:&#10;https://goldenagejjkrpg.forumeiros.com/t1097-treino-fonte-e-percepcao-magica-i#8620 (540)&#10;https://goldenagejjkrpg.forumeiros.com/t1152-quest-alter-kuma-b2#9320 (6000)&#10;..."></textarea>
+        <div id="avalDupWarning" class="dup-warning">
+          <div class="dup-header">⚠ Links duplicados</div>
+          <ul id="avalDupList"></ul>
+        </div>
+      </div>
+
+      <div id="tab-attrs" class="tab-pane">
+        <div class="row">
+          <div>
+            <label>Contador anterior (0–9)</label>
+            <input type="number" id="attrPrevCounter" min="0" max="9" value="0">
+          </div>
+          <div>
+            <label>Link do contador anterior</label>
+            <input type="url" id="attrPrevLink" placeholder="https://...">
+          </div>
+        </div>
+        <label>
+          Avaliações de Atributo
+          <span id="attrCount">0 avaliações</span>
+        </label>
+        <textarea id="attrLinks" rows="6" placeholder="Cole as avaliações aqui, uma por linha:&#10;https://goldenagejjkrpg.forumeiros.com/t992-treino-francesa-ii#7564 (1)&#10;https://goldenagejjkrpg.forumeiros.com/t1083-treino-duplo-atributo-energia#8539 (2)&#10;..."></textarea>
+        <div id="attrDupWarning" class="dup-warning">
+          <div class="dup-header">⚠ Links duplicados</div>
+          <ul id="attrDupList"></ul>
+        </div>
       </div>
 
       <label>Texto da Nota (título | conteúdo)</label>
@@ -316,28 +343,48 @@
     // Initialize form immediately (don't wait for DOMContentLoaded since script runs after DOM is loaded)
     initializeForm();
 
+    const TAB_IDS = ['logs', 'avals', 'attrs'];
+
     function switchTab(tab) {
       document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-        btn.classList.toggle('active', (i === 0 && tab === 'logs') || (i === 1 && tab === 'avals'));
+        btn.classList.toggle('active', TAB_IDS[i] === tab);
       });
-      document.getElementById('tab-logs').classList.toggle('active', tab === 'logs');
-      document.getElementById('tab-avals').classList.toggle('active', tab === 'avals');
+      TAB_IDS.forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+      });
+    }
+
+    function recalcNote() {
+      const logLines = document.getElementById('links').value.split('\n').map(l => l.trim()).filter(Boolean);
+      const avals = parseAvaliacoes(document.getElementById('avalLinks').value);
+      const attrs = parseAtributos(document.getElementById('attrLinks').value);
+      const prevCounter = parseInt(document.getElementById('attrPrevCounter').value) || 0;
+      updateNoteContent(logLines.length, avals, attrs, prevCounter);
     }
 
     // Update link count, flag duplicates, and auto-calc note on input
     document.getElementById('links').addEventListener('input', function () {
       const lines = this.value.split('\n').map(l => l.trim()).filter(Boolean);
       document.getElementById('linkCount').textContent = lines.length + ' link' + (lines.length !== 1 ? 's' : '');
-      checkDuplicates(lines);
-      updateNoteContent(lines.length, parseAvaliacoes(document.getElementById('avalLinks').value));
+      checkDuplicates(lines, 'linkCount', 'dupWarning', 'dupList');
+      recalcNote();
     });
 
     document.getElementById('avalLinks').addEventListener('input', function () {
       const avals = parseAvaliacoes(this.value);
       document.getElementById('avalCount').textContent = avals.length + ' avaliaç' + (avals.length !== 1 ? 'ões' : 'ão');
-      const logLines = document.getElementById('links').value.split('\n').map(l => l.trim()).filter(Boolean);
-      updateNoteContent(logLines.length, avals);
+      checkDuplicates(avals.map(a => a.url), 'avalCount', 'avalDupWarning', 'avalDupList');
+      recalcNote();
     });
+
+    document.getElementById('attrLinks').addEventListener('input', function () {
+      const attrs = parseAtributos(this.value);
+      document.getElementById('attrCount').textContent = attrs.length + ' avaliaç' + (attrs.length !== 1 ? 'ões' : 'ão');
+      checkDuplicates(attrs.map(a => a.url), 'attrCount', 'attrDupWarning', 'attrDupList');
+      recalcNote();
+    });
+
+    document.getElementById('attrPrevCounter').addEventListener('input', recalcNote);
 
     function parseAvaliacoes(text) {
       return text.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
@@ -347,34 +394,71 @@
       }).filter(Boolean);
     }
 
-    function updateNoteContent(n, avals) {
+    function parseAtributos(text) {
+      return text.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+        const match = line.match(/^(\S+)\s+\((\d+)\)\s*$/);
+        if (!match) return null;
+        return { url: match[1], pts: parseInt(match[2], 10) };
+      }).filter(Boolean);
+    }
+
+    function updateNoteContent(n, avals, attrs, prevCounter) {
       avals = avals || [];
+      attrs = attrs || [];
+      prevCounter = prevCounter || 0;
+
       const logXp = Math.trunc(n / 3) * 1000;
       const remainder = n % 3;
-      let text = `${n} Logs. 1000XP a cada 3 logs, ${logXp.toLocaleString('pt-BR')} XP Livre de logs.`;
-      if (remainder > 0 && avals.length === 0) text += `\nContador de logs em (${remainder}/3)`;
+      const hasExtras = avals.length > 0 || attrs.length > 0;
+
+      let lines = [];
+      if (n > 0) {
+        let logLine = `${n} Logs. 1000XP a cada 3 logs, ${logXp.toLocaleString('pt-BR')} XP Livre de logs.`;
+        if (remainder > 0 && !hasExtras) logLine += `\nContador de logs em (${remainder}/3)`;
+        lines.push(logLine);
+      }
+
+      let text = '';
+      let totalXp = logXp;
 
       if (avals.length > 0) {
         const avalTotal = avals.reduce((sum, a) => sum + a.xp, 0);
         const avalXp = Math.trunc(avalTotal * 0.2);
-        const totalXp = logXp + avalXp;
-        text += `\nDe avaliações de RP, 20% de ${avalTotal.toLocaleString('pt-BR')} = ${avalXp.toLocaleString('pt-BR')} XP Livre`;
-        text += `\n\nTotal de XP Livre OFF de Avaliações e Logs = ${totalXp.toLocaleString('pt-BR')} XP`;
+        totalXp += avalXp;
+        lines.push(`De avaliações de RP, 20% de ${avalTotal.toLocaleString('pt-BR')} = ${avalXp.toLocaleString('pt-BR')} XP Livre`);
       }
 
-      document.getElementById('noteContent').value = text;
+      if (attrs.length > 0) {
+        const attrSum = attrs.reduce((sum, a) => sum + a.pts, 0);
+        const combined = prevCounter + attrSum;
+        const points = Math.trunc(combined / 10);
+        const counter = combined % 10;
+        const attrXp = attrSum * 1000;
+        totalXp += attrXp;
+        let attrLine = `${attrSum} treinos de atributo. ${attrXp.toLocaleString('pt-BR')} de XP`;
+        if (points > 0) attrLine += ` e ${points} Ponto${points !== 1 ? 's' : ''} de Atributo Livre`;
+        attrLine += `. Contador em ${counter}/10.`;
+        lines.push(attrLine);
+      }
+
+      if (hasExtras) {
+        lines.push('');
+        lines.push(`Total de XP Livre OFF de Avaliações e Logs = ${totalXp.toLocaleString('pt-BR')} XP`);
+      }
+
+      document.getElementById('noteContent').value = lines.join('\n');
     }
 
-    function checkDuplicates(lines) {
+    function checkDuplicates(urls, badgeId, warningId, listId) {
       const seen = {};
-      lines.forEach((url, i) => {
+      urls.forEach((url, i) => {
         if (!seen[url]) seen[url] = [];
         seen[url].push(i + 1);
       });
 
       const dups = Object.entries(seen).filter(([, idxs]) => idxs.length > 1);
-      const warning = document.getElementById('dupWarning');
-      const badge = document.getElementById('linkCount');
+      const warning = document.getElementById(warningId);
+      const badge = document.getElementById(badgeId);
 
       if (dups.length === 0) {
         warning.style.display = 'none';
@@ -385,7 +469,7 @@
       badge.classList.add('dup-badge');
       warning.style.display = 'block';
 
-      const list = document.getElementById('dupList');
+      const list = document.getElementById(listId);
       list.innerHTML = dups.map(([url, idxs]) =>
         `<li><span>linhas ${idxs.join(', ')}:</span>${url}</li>`
       ).join('');
@@ -422,8 +506,11 @@
         .filter(Boolean);
 
       const rawAvals = parseAvaliacoes(document.getElementById('avalLinks').value);
+      const rawAttrs = parseAtributos(document.getElementById('attrLinks').value);
+      const attrPrevCounter = parseInt(document.getElementById('attrPrevCounter').value) || 0;
+      const attrPrevLink = document.getElementById('attrPrevLink').value.trim();
 
-      if (!rawLinks.length && !rawAvals.length) {
+      if (!rawLinks.length && !rawAvals.length && !rawAttrs.length) {
         alert('Cole pelo menos um link.');
         return;
       }
@@ -454,6 +541,18 @@
         const text = `Avaliação de RP (${xp.toLocaleString('pt-BR')} XP)`;
         items += `<li><span class="label">Extra:</span><span class="value"><a href="${escapeHtml(url)}" target="_blank">${escapeHtml(text)}</a></span></li>`;
       });
+
+      // Avaliação de Atributo links
+      if (rawAttrs.length > 0) {
+        if (attrPrevLink) {
+          const prevText = `Avaliações de treino de atributo anteriores: (${attrPrevCounter}/10)`;
+          items += `<li><span class="label">Extra:</span><span class="value"><a href="${escapeHtml(attrPrevLink)}" target="_blank">${escapeHtml(prevText)}</a></span></li>`;
+        }
+        rawAttrs.forEach(({ url, pts }) => {
+          const text = `Avaliação de treino atributo (${pts})`;
+          items += `<li><span class="label">Extra:</span><span class="value"><a href="${escapeHtml(url)}" target="_blank">${escapeHtml(text)}</a></span></li>`;
+        });
+      }
 
       // Notes block
       let notesBlock = '';
